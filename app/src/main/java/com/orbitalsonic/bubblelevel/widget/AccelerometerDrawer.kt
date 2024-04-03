@@ -44,24 +44,8 @@ class AccelerometerDrawer(context: Context, private val isSimple: Boolean) : Vie
     }
 
     init {
-        val gridColor: Int
-        val ballColor: Int
-        val typedValue = TypedValue()
-        val theme = context.theme
-
-
-        gridColor = if (theme.resolveAttribute(R.attr.accelerometerGridColor, typedValue, true)) {
-            typedValue.data
-        }
-        else {
-            ContextCompat.getColor(context,R.color.white)
-        }
-        ballColor = if (theme.resolveAttribute(R.attr.accelerometerBallColor, typedValue, true)) {
-            typedValue.data
-        }
-        else {
-            ContextCompat.getColor(context,R.color.transparent)
-        }
+        val gridColor: Int = ContextCompat.getColor(context,R.color.dayNightColor)
+        val ballColor: Int = ContextCompat.getColor(context,R.color.dayNightColor)
         pathPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         pathPaint.strokeWidth = 1f
         pathPaint.style = Paint.Style.STROKE
@@ -69,7 +53,6 @@ class AccelerometerDrawer(context: Context, private val isSimple: Boolean) : Vie
         ballPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         ballPaint.style = Paint.Style.FILL
         ballPaint.color = ballColor
-        ballPaint.alpha = Color.alpha(R.color.view_color)
         center = Point(0, 0)
     }
 }

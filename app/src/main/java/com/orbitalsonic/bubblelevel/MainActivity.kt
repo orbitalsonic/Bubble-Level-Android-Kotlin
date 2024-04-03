@@ -15,11 +15,6 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     private var sensorManager: SensorManager? = null
 
-    private var mSensor: Sensor? = null
-    private var aSensor: Sensor? = null
-    private var rSensor: Sensor? = null
-    private var gSensor: Sensor? = null
-
     private val rotationMatrixR = FloatArray(9)
     private val gravity = FloatArray(3)
     private val geomagnetic = FloatArray(3)
@@ -35,13 +30,37 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         setContentView(R.layout.activity_main)
         acceleroMeterView = findViewById(R.id.acm_view)
 
-        sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
+        initSensor()
+    }
 
-        mSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
-        aSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-        rSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
-        gSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_GRAVITY)
+    private fun initSensor() {
+        sensorManager = getSystemService(SENSOR_SERVICE) as? SensorManager
+    }
 
+
+    private fun sensorNotSupported() {
+        Toast.makeText(this, "Sensors Not Supported in this device", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun startSensors() {
+        val mSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+        val aSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        val rSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+        val gSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_GRAVITY)
+        if (mSensor == null || aSensor == null) {
+            sensorNotSupported()
+            return
+        } else {
+            sensorManager?.registerListener(this, mSensor, SensorManager.SENSOR_DELAY_NORMAL)
+            sensorManager?.registerListener(this, aSensor, SensorManager.SENSOR_DELAY_NORMAL)
+            sensorManager?.registerListener(this, rSensor, SensorManager.SENSOR_DELAY_NORMAL)
+            sensorManager?.registerListener(this, gSensor, SensorManager.SENSOR_DELAY_NORMAL)
+        }
+
+    }
+
+    private fun stopSensors() {
+        sensorManager?.unregisterListener(this)
     }
 
     override fun onSensorChanged(event: SensorEvent?) {
@@ -51,29 +70,23 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
             event?.let { mEvent ->
                 if (mEvent.sensor.type == Sensor.TYPE_GRAVITY) {
-                    if (gSensor != null) {
-                        gravity[0] = mEvent.values[0]
-                        gravity[1] = mEvent.values[1]
-                        gravity[2] = mEvent.values[2]
-                        updateOrientation(time)
-                    }
+                    gravity[0] = mEvent.values[0]
+                    gravity[1] = mEvent.values[1]
+                    gravity[2] = mEvent.values[2]
+                    updateOrientation(time)
                 }
 
 
                 if (mEvent.sensor.type == Sensor.TYPE_ACCELEROMETER) {
                     if (mEvent.sensor.type == Sensor.TYPE_GRAVITY) {
-                        if (gSensor == null) {
-                            gravity[0] = this.alpha * gravity[0] + (1 - this.alpha) * mEvent.values[0]
-                            gravity[1] = this.alpha * gravity[1] + (1 - this.alpha) * mEvent.values[1]
-                            gravity[2] = this.alpha * gravity[2] + (1 - this.alpha) * mEvent.values[2]
-                            updateOrientation(time)
-                        }
+                        gravity[0] = this.alpha * gravity[0] + (1 - this.alpha) * mEvent.values[0]
+                        gravity[1] = this.alpha * gravity[1] + (1 - this.alpha) * mEvent.values[1]
+                        gravity[2] = this.alpha * gravity[2] + (1 - this.alpha) * mEvent.values[2]
+                        updateOrientation(time)
                     }
-
                 }
 
                 if (mEvent.sensor.type == Sensor.TYPE_MAGNETIC_FIELD) {
-
                     geomagnetic[0] = this.alpha * geomagnetic[0] + (1 - this.alpha) * mEvent.values[0]
                     geomagnetic[1] = this.alpha * geomagnetic[1] + (1 - this.alpha) * mEvent.values[1]
                     geomagnetic[2] = this.alpha * geomagnetic[2] + (1 - this.alpha) * mEvent.values[2]
@@ -85,25 +98,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         }
     }
 
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-    }
-
-    private fun startSensors() {
-        mSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
-        aSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-        rSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
-        gSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_GRAVITY)
-        if (mSensor == null || aSensor == null) {
-            notSupported()
-            return
-        } else {
-            sensorManager?.registerListener(this, mSensor, SensorManager.SENSOR_DELAY_NORMAL)
-            sensorManager?.registerListener(this, aSensor, SensorManager.SENSOR_DELAY_NORMAL)
-            sensorManager?.registerListener(this, rSensor, SensorManager.SENSOR_DELAY_NORMAL)
-            sensorManager?.registerListener(this, gSensor, SensorManager.SENSOR_DELAY_NORMAL)
-        }
-
-    }
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     private fun updateOrientation(time: Long) {
         if (SensorManager.getRotationMatrix(rotationMatrixR, null, gravity, geomagnetic)) {
@@ -128,10 +123,6 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     override fun onPause() {
         super.onPause()
-        sensorManager?.unregisterListener(this)
-    }
-
-    private fun notSupported() {
-        Toast.makeText(this, "Sensors Not Supported in this device", Toast.LENGTH_SHORT).show()
+        stopSensors()
     }
 }
