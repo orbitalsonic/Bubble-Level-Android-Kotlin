@@ -11,24 +11,22 @@ import com.orbitalsonic.bubblelevel.widget.AccelerometerView
 
 class MainActivity : AppCompatActivity(), SensorEventListener {
 
-    private lateinit var acceleroMeterView: AccelerometerView
+    private lateinit var acmView: AccelerometerView
 
     private var sensorManager: SensorManager? = null
 
-    private val rotationMatrixR = FloatArray(9)
-    private val gravity = FloatArray(3)
-    private val geomagnetic = FloatArray(3)
-    private var orientation = FloatArray(3)
+    private val sGravityValues = FloatArray(3)
+    private val sMagneticValues = FloatArray(3)
 
-    private var accelerometerPrevTime: Long = 0
-    private val alpha = 0.96f
-    private val updateInterval = 10 //mills
+    private var acmPrevTime: Long = 0
+    private val mAlpha = 0.96f
+    private val updateInterval = 10
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        acceleroMeterView = findViewById(R.id.acm_view)
+        acmView = findViewById(R.id.acm_view)
 
         initSensor()
     }
@@ -37,6 +35,23 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         sensorManager = getSystemService(SENSOR_SERVICE) as? SensorManager
     }
 
+    private fun setBallRotation(time: Long) {
+        val r = FloatArray(9)
+        if (SensorManager.getRotationMatrix(r, null, sGravityValues, sMagneticValues)) {
+            var orientation = FloatArray(3)
+            orientation = SensorManager.getOrientation(r, orientation)
+            if (time - acmPrevTime > updateInterval) {
+                Math.toDegrees(orientation[0].toDouble()).toFloat()  //azimuth
+                Math.toDegrees(orientation[1].toDouble()).toFloat()  //pitch
+                Math.toDegrees(orientation[2].toDouble()).toFloat() //roll
+                acmPrevTime = time
+                acmView.updateOrientation(
+                    Math.toDegrees(orientation[1].toDouble()).toFloat(),
+                    Math.toDegrees(orientation[2].toDouble()).toFloat()
+                )
+            }
+        }
+    }
 
     private fun sensorNotSupported() {
         Toast.makeText(this, "Sensors Not Supported in this device", Toast.LENGTH_SHORT).show()
@@ -67,31 +82,22 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
         synchronized(this) {
             val time = System.currentTimeMillis()
-
             event?.let { mEvent ->
                 if (mEvent.sensor.type == Sensor.TYPE_GRAVITY) {
-                    gravity[0] = mEvent.values[0]
-                    gravity[1] = mEvent.values[1]
-                    gravity[2] = mEvent.values[2]
-                    updateOrientation(time)
-                }
-
-
-                if (mEvent.sensor.type == Sensor.TYPE_ACCELEROMETER) {
-                    if (mEvent.sensor.type == Sensor.TYPE_GRAVITY) {
-                        gravity[0] = this.alpha * gravity[0] + (1 - this.alpha) * mEvent.values[0]
-                        gravity[1] = this.alpha * gravity[1] + (1 - this.alpha) * mEvent.values[1]
-                        gravity[2] = this.alpha * gravity[2] + (1 - this.alpha) * mEvent.values[2]
-                        updateOrientation(time)
-                    }
+                    sGravityValues[0] = mEvent.values[0]
+                    sGravityValues[1] = mEvent.values[1]
+                    sGravityValues[2] = mEvent.values[2]
+                    setBallRotation(time)
                 }
 
                 if (mEvent.sensor.type == Sensor.TYPE_MAGNETIC_FIELD) {
-                    geomagnetic[0] = this.alpha * geomagnetic[0] + (1 - this.alpha) * mEvent.values[0]
-                    geomagnetic[1] = this.alpha * geomagnetic[1] + (1 - this.alpha) * mEvent.values[1]
-                    geomagnetic[2] = this.alpha * geomagnetic[2] + (1 - this.alpha) * mEvent.values[2]
-
-
+                    sMagneticValues[0] =
+                        mAlpha * sMagneticValues[0] + (1 - mAlpha) * mEvent.values[0]
+                    sMagneticValues[1] =
+                        mAlpha * sMagneticValues[1] + (1 - mAlpha) * mEvent.values[1]
+                    sMagneticValues[2] =
+                        mAlpha * sMagneticValues[2] + (1 - mAlpha) * mEvent.values[2]
+                    setBallRotation(time)
                 }
             }
 
@@ -99,22 +105,6 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-
-    private fun updateOrientation(time: Long) {
-        if (SensorManager.getRotationMatrix(rotationMatrixR, null, gravity, geomagnetic)) {
-            orientation = SensorManager.getOrientation(rotationMatrixR, orientation)
-            if (time - accelerometerPrevTime > updateInterval) {
-                Math.toDegrees(orientation[0].toDouble()).toFloat()  //azimuth
-                Math.toDegrees(orientation[1].toDouble()).toFloat()  //pitch
-                Math.toDegrees(orientation[2].toDouble()).toFloat() //roll
-                accelerometerPrevTime = time
-                acceleroMeterView.updateOrientation(
-                    Math.toDegrees(orientation[1].toDouble()).toFloat(),
-                    Math.toDegrees(orientation[2].toDouble()).toFloat()
-                )
-            }
-        }
-    }
 
     override fun onResume() {
         super.onResume()
