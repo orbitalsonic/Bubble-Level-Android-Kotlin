@@ -15,13 +15,11 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     private var sensorManager: SensorManager? = null
 
-    private val sGravityValues = FloatArray(3)
-    private val sMagneticValues = FloatArray(3)
-
-    private var acmPrevTime: Long = 0
-    private val mAlpha = 0.96f
-    private val updateInterval = 10
-
+    private var lastSensorUpdateTime: Long = 0
+    private val alpha = 0.96f
+    private val updateInterval = 10L
+    private val gravityValues = FloatArray(3)
+    private val magneticValues = FloatArray(3)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,22 +31,19 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     private fun initSensor() {
         sensorManager = getSystemService(SENSOR_SERVICE) as? SensorManager
+        startSensors()
     }
 
-    private fun setBallRotation(time: Long) {
-        val r = FloatArray(9)
-        if (SensorManager.getRotationMatrix(r, null, sGravityValues, sMagneticValues)) {
-            var orientation = FloatArray(3)
-            orientation = SensorManager.getOrientation(r, orientation)
-            if (time - acmPrevTime > updateInterval) {
-                Math.toDegrees(orientation[0].toDouble()).toFloat()  //azimuth
-                Math.toDegrees(orientation[1].toDouble()).toFloat()  //pitch
-                Math.toDegrees(orientation[2].toDouble()).toFloat() //roll
-                acmPrevTime = time
-                acmView.updateOrientation(
-                    Math.toDegrees(orientation[1].toDouble()).toFloat(),
-                    Math.toDegrees(orientation[2].toDouble()).toFloat()
-                )
+    private fun startSensors() {
+        val gravitySensor = sensorManager?.getDefaultSensor(Sensor.TYPE_GRAVITY)
+        val magneticSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+
+        if (gravitySensor == null || magneticSensor == null) {
+            sensorNotSupported()
+        } else {
+            sensorManager?.apply {
+                registerListener(this@MainActivity, gravitySensor, SensorManager.SENSOR_DELAY_NORMAL)
+                registerListener(this@MainActivity, magneticSensor, SensorManager.SENSOR_DELAY_NORMAL)
             }
         }
     }
@@ -57,54 +52,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         Toast.makeText(this, "Sensors Not Supported in this device", Toast.LENGTH_SHORT).show()
     }
 
-    private fun startSensors() {
-        val mSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
-        val aSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-        val rSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
-        val gSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_GRAVITY)
-        if (mSensor == null || aSensor == null) {
-            sensorNotSupported()
-            return
-        } else {
-            sensorManager?.registerListener(this, mSensor, SensorManager.SENSOR_DELAY_NORMAL)
-            sensorManager?.registerListener(this, aSensor, SensorManager.SENSOR_DELAY_NORMAL)
-            sensorManager?.registerListener(this, rSensor, SensorManager.SENSOR_DELAY_NORMAL)
-            sensorManager?.registerListener(this, gSensor, SensorManager.SENSOR_DELAY_NORMAL)
-        }
-
-    }
-
     private fun stopSensors() {
         sensorManager?.unregisterListener(this)
     }
-
-    override fun onSensorChanged(event: SensorEvent?) {
-
-        synchronized(this) {
-            val time = System.currentTimeMillis()
-            event?.let { mEvent ->
-                if (mEvent.sensor.type == Sensor.TYPE_GRAVITY) {
-                    sGravityValues[0] = mEvent.values[0]
-                    sGravityValues[1] = mEvent.values[1]
-                    sGravityValues[2] = mEvent.values[2]
-                    setBallRotation(time)
-                }
-
-                if (mEvent.sensor.type == Sensor.TYPE_MAGNETIC_FIELD) {
-                    sMagneticValues[0] =
-                        mAlpha * sMagneticValues[0] + (1 - mAlpha) * mEvent.values[0]
-                    sMagneticValues[1] =
-                        mAlpha * sMagneticValues[1] + (1 - mAlpha) * mEvent.values[1]
-                    sMagneticValues[2] =
-                        mAlpha * sMagneticValues[2] + (1 - mAlpha) * mEvent.values[2]
-                    setBallRotation(time)
-                }
-            }
-
-        }
-    }
-
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     override fun onResume() {
         super.onResume()
@@ -115,4 +65,44 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         super.onPause()
         stopSensors()
     }
+
+    override fun onSensorChanged(event: SensorEvent?) {
+        event ?: return
+
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastSensorUpdateTime < updateInterval) return
+
+        lastSensorUpdateTime = currentTime
+
+        when (event.sensor.type) {
+            Sensor.TYPE_GRAVITY -> {
+                gravityValues[0] = event.values[0]
+                gravityValues[1] = event.values[1]
+                gravityValues[2] = event.values[2]
+            }
+            Sensor.TYPE_MAGNETIC_FIELD -> {
+                magneticValues[0] = alpha * magneticValues[0] + (1 - alpha) * event.values[0]
+                magneticValues[1] = alpha * magneticValues[1] + (1 - alpha) * event.values[1]
+                magneticValues[2] = alpha * magneticValues[2] + (1 - alpha) * event.values[2]
+            }
+        }
+
+        updateBallRotation()
+    }
+
+    private fun updateBallRotation() {
+        val rotationMatrix = FloatArray(9)
+        if (SensorManager.getRotationMatrix(rotationMatrix, null, gravityValues, magneticValues)) {
+            val orientation = FloatArray(3)
+            SensorManager.getOrientation(rotationMatrix, orientation)
+
+            val pitch = Math.toDegrees(orientation[1].toDouble()).toFloat()
+            val roll = Math.toDegrees(orientation[2].toDouble()).toFloat()
+
+            acmView.updateOrientation(pitch, roll)
+        }
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
 }
